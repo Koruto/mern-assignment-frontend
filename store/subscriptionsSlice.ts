@@ -1,4 +1,5 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import { Subscription, SubscriptionsState } from "./types";
 
 export const fetchSubscriptions = createAsyncThunk(
   "subscriptions/fetch",
@@ -8,16 +9,21 @@ export const fetchSubscriptions = createAsyncThunk(
   }
 );
 
-type Subscription = {
-  id: string;
-  status: 'active' | 'cancelled';
-};
+export const addSubscription = createAsyncThunk(
+  "subscriptions/add",
+  async (_, { dispatch }) => {
+    await fetch('/api/subscriptions', { method: 'POST' });
+    await dispatch(fetchSubscriptions());
+  }
+);
 
-type SubscriptionsState = {
-  data: Subscription[];
-  loading: boolean;
-  activeCount: number;
-};
+export const cancelSubscription = createAsyncThunk(
+  "subscriptions/cancel",
+  async (_, { dispatch }) => {
+    await fetch('/api/subscriptions', { method: 'PATCH' });
+    await dispatch(fetchSubscriptions());
+  }
+);
 
 const initialState: SubscriptionsState = {
   data: [],
@@ -31,16 +37,25 @@ const subscriptionsSlice = createSlice({
   reducers: {},
   extraReducers: (builder) => {
     builder
-      .addCase(fetchSubscriptions.pending, (state) => {
-        state.loading = true;
-      })
       .addCase(fetchSubscriptions.fulfilled, (state, action) => {
         state.data = action.payload;
-        state.activeCount = action.payload.filter(
-          (s: Subscription) => s.status === 'active'
-        ).length;
-        state.loading = false;
-      });
+        state.activeCount = action.payload.filter((sub: Subscription) => sub.status === 'active').length;
+      })
+      .addMatcher(
+        (action) => action.type?.startsWith('subscriptions/') && action.type?.endsWith('/pending'),
+        (state) => {
+          state.loading = true;
+        }
+      )
+      .addMatcher(
+        (action) => {
+          const type = action.type ?? '';
+          return type.startsWith('subscriptions/') && (type.endsWith('/fulfilled') || type.endsWith('/rejected'));
+        },
+        (state) => {
+          state.loading = false;
+        }
+      );
   }
 });
 
